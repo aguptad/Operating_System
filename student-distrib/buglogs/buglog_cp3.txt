@@ -1,0 +1,60 @@
+Component: Execute - Context Switching
+File: sys_calls.c
+Bug: Whenever the context switch to the user program is initiated in execuate
+the system throws a Page Fault, even though the iret stack pushed was filled
+with the correct values.
+Correction: When setting up the page directory entry for the user program, we
+had to ensure that the user access bit was checked.
+Explanation: Use permission level program can only access pages that are designated
+for them or else any attempt will throw a Page Fault.
+
+
+Component: All Syscalls - Returning
+File: sys_calls.c
+Bug: Wheneven a sys call function would reach its return line, it would lead to
+a page fault in the process of returning.
+Correction: Instead of using the regular C returning convention, we use a custom macro
+to correctly return to the correct place in the sys call handler linkage (ie RETURN).
+Explanation: When the execuation reaches a regular return line, it pops the top value off
+the stack and attempts to return. However, since sys call functions are access via a jump table
+and not C calling convention, this leads to issues.
+
+
+Component: Execuate - Reading Entry Point
+File: sys_calls.c
+Bug: The entry address value read in from execuatables was consistantly incorrect
+and outside of the range of the user page, leading to a Page Fault upon context switch.
+Correction: We need to read in the entry address with the least signifant byte becoming the
+most significant byte in the address.
+Explanation: It was assumed that execuate was supposed to read in the entry address from most
+to least significant bytes, a faulty assumption.
+
+
+Component: sys_calls_handler_end
+File: sys_calls_handler.c
+Bug: Upon executing the ret instruction at the end of the sys_call_handler_end sub-routine, the
+program would return to an invalid address and subsiquently page fault.
+Correction: It was necessary to pop an extra 32-bit value off the top of the stack upon returning
+from the specific sys call handler sub-routine.
+Explanation: Since C functions automatically push the previous epb onto the stack upon entering
+it is important to manually pop this value off when not returning using typical C return convention.
+
+Component: read/write
+File: sys_calls.C
+Bug: Attempting read operations on standard output (stdout) or write operations on standard input (stdin)
+causes page faults.
+Correction: Implemented a check for invalid file descriptor operations to prevent page faults. Specifically,
+if a write operation is requested on file descriptor 0 (stdin), or a read operation is requested on file
+descriptor 1 (stdout), the system now returns an error. This ensures that operations incompatible with the
+file descriptors' intended use are appropriately handled, maintaining system stability.
+
+
+Component: System Call Stack Error Handling Bug Fix
+File: sys_calls_handler.S
+Bug: Incorrect stack management when handling invalid system call numbers. The system attempted to adjust the
+stack for arguments that were not pushed in the case of an invalid system call number, leading to stack misalignment
+and potential faults.
+Correction: Adjusted the error handling logic to ensure stack integrity. Now, the system correctly identifies when it has not pushed
+arguments onto the stack due to an invalid system call number and skips the stack adjustment in such cases. This fix
+prevents the stack from becoming misaligned, thereby avoiding related faults and ensuring the system's robust error 
+handling.
